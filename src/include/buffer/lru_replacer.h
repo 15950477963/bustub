@@ -15,6 +15,7 @@
 #include <list>
 #include <mutex>  // NOLINT
 #include <vector>
+#include <unordered_map>
 
 #include "buffer/replacer.h"
 #include "common/config.h"
@@ -46,7 +47,16 @@ class LRUReplacer : public Replacer {
   size_t Size() override;
 
  private:
-  // TODO(student): implement me!
+
+  struct frame_element {
+    frame_id_t frame_id;
+    bool isPin;
+  };
+
+  std::list<frame_element> lruList;
+  std::unordered_map<frame_id_t, std::list<frame_element>::iterator> lruMap;
+  // avaliable pages可被替换的page数量
+  size_t avlbPages;
 };
 
 }  // namespace bustub

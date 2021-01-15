@@ -33,7 +33,7 @@ class BufferPoolManager {
 
   /**
    * Creates a new BufferPoolManager.
-   * @param pool_size the size of the buffer pool
+   * @param pool_size the size of the buffer poolPITFALLS
    * @param disk_manager the disk manager
    * @param log_manager the log manager (for testing only: nullptr = disable logging)
    */
@@ -165,6 +165,7 @@ class BufferPoolManager {
   /** Replacer to find unpinned pages for replacement. */
   Replacer *replacer_;
   /** List of free pages. */
+  /** free_list里的frame_id代表pages中的序号*/
   std::list<frame_id_t> free_list_;
   /** This latch protects shared data structures. We recommend updating this comment to describe what it protects. */
   std::mutex latch_;
