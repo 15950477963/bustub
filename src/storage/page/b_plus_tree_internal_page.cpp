@@ -101,7 +101,11 @@ ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key, const KeyCo
  */
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::PopulateNewRoot(const ValueType &old_value, const KeyType &new_key,
-                                                     const ValueType &new_value) {}
+                                                     const ValueType &new_value) {
+  array[0].second = old_value;
+  array[1] = std::make_pair(new_key, new_value);
+  IncreaseSize(2);
+}
 /*
  * Insert new_key & new_value pair right after the pair with its value ==
  * old_value
@@ -110,7 +114,15 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::PopulateNewRoot(const ValueType &old_value,
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(const ValueType &old_value, const KeyType &new_key,
                                                     const ValueType &new_value) {
-  return 0;
+  int insert_index = ValueIndex(old_value);
+  // TODO:由于不是拷贝不变类型(TriviallyCopyable)，使用mem系列函数会报警，这样做的危害是什么?
+  // memmove(array+insert_index+2, array+insert_index+1, (GetSize()-insert_index-1) * sizeof(MappingType));
+  for(int i = GetSize(); i > insert_index+1; i--){
+    array[i] = array[i-1];
+  }
+  array[insert_index+1] = std::make_pair(new_key, new_value);
+  IncreaseSize(1);
+  return GetSize();
 }
 
 /*****************************************************************************
@@ -121,14 +133,29 @@ int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(const ValueType &old_value, 
  */
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage *recipient,
-                                                BufferPoolManager *buffer_pool_manager) {}
+                                                BufferPoolManager *buffer_pool_manager) {
+  int remain_size = GetSize() / 2;
+  int remove_size = GetSize() - remain_size;
+  recipient->CopyNFrom(array + remain_size, remove_size, buffer_pool_manager);
+  IncreaseSize(-1 * remove_size);
+}
 
 /* Copy entries into me, starting from {items} and copy {size} entries.
  * Since it is an internal page, for all entries (pages) moved, their parents page now changes to me.
  * So I need to 'adopt' them by changing their parent page id, which needs to be persisted with BufferPoolManger
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyNFrom(MappingType *items, int size, BufferPoolManager *buffer_pool_manager) {}
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyNFrom(MappingType *items, int size, BufferPoolManager *buffer_pool_manager) {
+  for(int i = 0; i < size; i++){
+    array[i] = items[i];
+    page_id_t page_id = array[i].second;
+    Page* page = buffer_pool_manager->FetchPage(page_id);
+    auto node = reinterpret_cast<BPlusTreePage*>(page->GetData());
+    node->SetParentPageId(GetPageId());
+    buffer_pool_manager->UnpinPage(page_id, true);
+  }
+  IncreaseSize(size);
+}
 
 /*****************************************************************************
  * REMOVE

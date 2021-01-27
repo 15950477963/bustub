@@ -55,7 +55,13 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::SetNextPageId(page_id_t next_page_id) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::KeyIndex(const KeyType &key, const KeyComparator &comparator) const {
-  return 0;
+  if (GetSize() == 0) return 0;
+   for(int i = 0; i < GetSize(); ++i){
+       if(comparator(KeyAt(i), key) >= 0){
+           return i;
+       }
+   }
+  return GetSize();
 }
 
 /*
@@ -87,7 +93,14 @@ const MappingType &B_PLUS_TREE_LEAF_PAGE_TYPE::GetItem(int index) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &value, const KeyComparator &comparator) {
-  return 0;
+  int insert_index = KeyIndex(key, comparator);
+  printf("insert to page %d index %d\n", static_cast<int>(GetPageId()), insert_index);
+  for(int i = GetSize(); i > insert_index; i--){
+    array[i] = array[i-1];
+  }
+  array[insert_index] = std::make_pair(key, value);
+  IncreaseSize(1);
+  return GetSize();
 }
 
 /*****************************************************************************
@@ -97,13 +110,23 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &valu
  * Remove half of key & value pairs from this page to "recipient" page
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(BPlusTreeLeafPage *recipient) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(BPlusTreeLeafPage *recipient, BufferPoolManager *buffer_pool_manager) {
+  int remain_size = GetSize() / 2;
+  int remove_size = GetSize() - remain_size;
+  recipient->CopyNFrom(array + remain_size, remove_size, buffer_pool_manager);
+  IncreaseSize(-1 * remove_size);
+}
 
 /*
  * Copy starting from items, and copy {size} number of elements into me.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyNFrom(MappingType *items, int size) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyNFrom(MappingType *items, int size, BufferPoolManager *buffer_pool_manager) {
+  for(int i = 0; i < size; i++){
+    array[i] = items[i];
+  }
+  IncreaseSize(size);
+}
 
 /*****************************************************************************
  * LOOKUP
@@ -117,7 +140,7 @@ INDEX_TEMPLATE_ARGUMENTS
 bool B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType *value, const KeyComparator &comparator) const {
   for(int i = 0; i < GetSize(); i++){
     if (comparator(key, KeyAt(i)) == 0) {
-      // TODO whts wrong with GetItem?
+      // GetItem is not const function, can not use in this const function
       // *value = GetItem(i).second;
       *value = array[i].second;
       return true;

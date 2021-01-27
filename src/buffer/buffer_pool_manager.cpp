@@ -45,6 +45,7 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
   auto page_iter = page_table_.find(page_id);
   // 直接在page_table里找到了
   if(page_iter != page_table_.end()) {
+    pages_[page_iter->second].pin_count_++;
     return &pages_[page_iter->second];
   }
 
