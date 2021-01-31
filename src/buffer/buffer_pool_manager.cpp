@@ -3,7 +3,7 @@
 //                         BusTub
 //
 // buffer_pool_manager.cpp
-//
+//  printf("new page: %d\n", *page_id);
 // Identification: src/buffer/buffer_pool_manager.cpp
 //
 // Copyright (c) 2015-2019, Carnegie Mellon University Database Group
@@ -127,7 +127,6 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
   // 3.   Update P's metadata, zero out memory and add P to the page table.
   // 4.   Set the page ID output parameter. Return a pointer to P.
 
-
   // 从free_list或者replacer中取得可以使用的frame_id
   frame_id_t free_frame_id;
   page_id_t replace_page_id;
@@ -155,7 +154,6 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
   // test出错点：注意New的pin_count_应该是1，不然test过不了
   pages_[free_frame_id].pin_count_ = 1;
   page_table_.emplace(*page_id, free_frame_id);
-
   return &pages_[free_frame_id];
 }
 

@@ -14,6 +14,7 @@
 #include "common/exception.h"
 #include "common/rid.h"
 #include "storage/page/b_plus_tree_leaf_page.h"
+#include "storage/page/b_plus_tree_internal_page.h"
 
 namespace bustub {
 
@@ -94,7 +95,7 @@ const MappingType &B_PLUS_TREE_LEAF_PAGE_TYPE::GetItem(int index) {
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &value, const KeyComparator &comparator) {
   int insert_index = KeyIndex(key, comparator);
-  printf("insert to page %d index %d\n", static_cast<int>(GetPageId()), insert_index);
+//  printf("insert to page %d index %d\n", static_cast<int>(GetPageId()), insert_index);
   for(int i = GetSize(); i > insert_index; i--){
     array[i] = array[i-1];
   }
@@ -159,7 +160,17 @@ bool B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType *value, co
  * @return   page size after deletion
  */
 INDEX_TEMPLATE_ARGUMENTS
-int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(const KeyType &key, const KeyComparator &comparator) { return 0; }
+int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(const KeyType &key, const KeyComparator &comparator) {
+  int index = KeyIndex(key, comparator);
+  if (index != GetSize() && comparator(key, KeyAt(index)) == 0){
+//    printf("delete page %d index %d\n", GetPageId(), index);
+    for (int i = index; i < GetSize(); i++){
+      array[i] = array[i+1];
+    }
+    IncreaseSize(-1);
+  }
+  return GetSize();
+}
 
 /*****************************************************************************
  * MERGE
@@ -169,7 +180,18 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(const KeyType &key, const 
  * to update the next_page id in the sibling page
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient, const KeyType &middle_key,
+                                           BufferPoolManager *buffer_pool_manager) {
+//  printf("move all from page：%d to page: %d\n", GetPageId(), recipient->GetPageId());
+  int recipient_size = recipient->GetSize();
+  for(int i = 0; i < GetSize(); i++){
+    recipient->array[recipient_size+i] = array[i];
+  }
+  recipient->IncreaseSize(GetSize());
+  //recipient在node的左边,需要重新设置next
+  recipient->SetNextPageId(GetNextPageId());
+  SetSize(0);
+}
 
 /*****************************************************************************
  * REDISTRIBUTE
@@ -178,25 +200,61 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient) {}
  * Remove the first key & value pair from this page to "recipient" page.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeLeafPage *recipient) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeLeafPage *recipient, const KeyType &middle_key,
+                                                  BufferPoolManager *buffer_pool_manager) {
+  MappingType item = array[0];
+  recipient->CopyLastFrom(item, buffer_pool_manager);
+  for (int i = 0; i < GetSize()-1; i++){
+    array[i] = array[i+1];
+  }
+  IncreaseSize(-1);
+  // 更新parent中指向此page的key
+  page_id_t parent_id = GetParentPageId();
+  Page* parent_page = buffer_pool_manager->FetchPage(parent_id);
+  auto parent_node = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>*>(parent_page->GetData());
+  int index_point_this_page = parent_node->ValueIndex(GetPageId());
+  parent_node->SetKeyAt(index_point_this_page, array[0].first);
+  buffer_pool_manager->UnpinPage(parent_id, true);
+}
 
 /*
  * Copy the item into the end of my item list. (Append item to my array)
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyLastFrom(const MappingType &item) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyLastFrom(const MappingType &item, BufferPoolManager *buffer_pool_manager) {
+  array[GetSize()] = item;
+  IncreaseSize(1);
+}
 
 /*
  * Remove the last key & value pair from this page to "recipient" page.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveLastToFrontOf(BPlusTreeLeafPage *recipient) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveLastToFrontOf(BPlusTreeLeafPage *recipient, const KeyType &middle_key,
+                                                   BufferPoolManager *buffer_pool_manager) {
+  MappingType item = array[GetSize()-1];
+  recipient->CopyFirstFrom(item, buffer_pool_manager);
+  IncreaseSize(-1);
+  // 更新parent中指向recipient page的key, 不是此page
+  page_id_t parent_id = recipient->GetParentPageId();
+  Page* parent_page = buffer_pool_manager->FetchPage(parent_id);
+  auto parent_node = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>*>(parent_page->GetData());
+  int index_point_recipient_page = parent_node->ValueIndex(recipient->GetPageId());
+  parent_node->SetKeyAt(index_point_recipient_page, recipient->array[0].first);
+  buffer_pool_manager->UnpinPage(parent_id, true);
+}
 
 /*
  * Insert item at the front of my items. Move items accordingly.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyFirstFrom(const MappingType &item) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyFirstFrom(const MappingType &item, BufferPoolManager *buffer_pool_manager) {
+  for(int i = GetSize(); i > 0; i--){
+    array[i] = array[i-1];
+  }
+  array[0] = item;
+  IncreaseSize(1);
+}
 
 template class BPlusTreeLeafPage<GenericKey<4>, RID, GenericComparator<4>>;
 template class BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>>;
