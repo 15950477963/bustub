@@ -51,5 +51,9 @@ class DeleteExecutor : public AbstractExecutor {
   const DeletePlanNode *plan_;
   /** The child executor to obtain rid from. */
   std::unique_ptr<AbstractExecutor> child_executor_;
+
+  const TableMetadata *table_meta_;
+  const IndexInfo *index_info_;
+
 };
 }  // namespace bustub

@@ -77,10 +77,13 @@ class BPlusTree {
   // read data from file and remove one by one
   void RemoveFromFile(const std::string &file_name, Transaction *transaction = nullptr);
   // expose for test purpose
-  Page *FindLeafPage(const KeyType &key, bool leftMost = false);
+  Page *FindLeafPage(const KeyType &key, bool leftMost = false, Transaction *transaction = nullptr, bool read= true);
 
  private:
-  void StartNewTree(const KeyType &key, const ValueType &value);
+  void LockPage(Page* page, Transaction* txn, bool read);
+  void UnlockPage(Page* page, Transaction* txn, bool read);
+
+  void StartNewTree(const KeyType &key, const ValueType &value, Transaction *transaction);
 
   bool InsertIntoLeaf(const KeyType &key, const ValueType &value, Transaction *transaction = nullptr);
 
@@ -88,7 +91,7 @@ class BPlusTree {
                         Transaction *transaction = nullptr);
 
   template <typename N>
-  N *Split(N *node);
+  N *Split(N *node, Transaction *transaction);
 
   template <typename N>
   bool CoalesceOrRedistribute(N *node, Transaction *transaction = nullptr);

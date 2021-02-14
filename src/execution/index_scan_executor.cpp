@@ -15,7 +15,9 @@ namespace bustub {
 IndexScanExecutor::IndexScanExecutor(ExecutorContext *exec_ctx, const IndexScanPlanNode *plan)
     : AbstractExecutor(exec_ctx) {}
 
-void IndexScanExecutor::Init() {}
+void IndexScanExecutor::Init() {
+
+}
 
 bool IndexScanExecutor::Next(Tuple *tuple, RID *rid) { return false; }
 

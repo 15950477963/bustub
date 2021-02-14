@@ -30,6 +30,7 @@ class ReaderWriterLatch {
 
  public:
   ReaderWriterLatch() = default;
+  // TODO：为什么在析构函数中放一个lock_guard？
   ~ReaderWriterLatch() { std::lock_guard<mutex_t> guard(mutex_); }
 
   DISALLOW_COPY(ReaderWriterLatch);

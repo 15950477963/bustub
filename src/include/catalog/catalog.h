@@ -24,6 +24,7 @@ using index_oid_t = uint32_t;
 /**
  * Metadata about a table.
  */
+// table已经是右值引用了，为啥还要move？
 struct TableMetadata {
   TableMetadata(Schema schema, std::string name, std::unique_ptr<TableHeap> &&table, table_oid_t oid)
       : schema_(std::move(schema)), name_(std::move(name)), table_(std::move(table)), oid_(oid) {}
@@ -77,14 +78,33 @@ class Catalog {
    */
   TableMetadata *CreateTable(Transaction *txn, const std::string &table_name, const Schema &schema) {
     BUSTUB_ASSERT(names_.count(table_name) == 0, "Table names should be unique!");
-    return nullptr;
+    table_oid_t table_oid = next_table_oid_++;
+    names_.emplace(table_name, table_oid);
+    auto table = std::make_unique<TableHeap>(bpm_, lock_manager_, log_manager_, txn);
+    auto meta_data = new TableMetadata(schema, table_name, std::move(table), table_oid);
+    tables_.emplace(table_oid, meta_data);
+    return meta_data;
   }
 
   /** @return table metadata by name */
-  TableMetadata *GetTable(const std::string &table_name) { return nullptr; }
+  TableMetadata *GetTable(const std::string &table_name) {
+    if (names_.find(table_name) == names_.end()){
+      throw std::out_of_range{"can not find table"};
+    }
+    auto table_oid = names_[table_name];
+    if (tables_.find(table_oid) == tables_.end()){
+      throw std::out_of_range{"can not find table"};
+    }
+    return tables_[table_oid].get();
+  }
 
   /** @return table metadata by oid */
-  TableMetadata *GetTable(table_oid_t table_oid) { return nullptr; }
+  TableMetadata *GetTable(table_oid_t table_oid) {
+    if (tables_.find(table_oid) == tables_.end()){
+      throw std::out_of_range{"can not find table"};
+    }
+    return tables_[table_oid].get();
+  }
 
   /**
    * Create a new index, populate existing data of the table and return its metadata.
@@ -101,14 +121,46 @@ class Catalog {
   IndexInfo *CreateIndex(Transaction *txn, const std::string &index_name, const std::string &table_name,
                          const Schema &schema, const Schema &key_schema, const std::vector<uint32_t> &key_attrs,
                          size_t keysize) {
-    return nullptr;
+    // TODO: tuple_schema不知道从哪获得，导致没法创建Index,暂且认为tuple_schema就是schema
+    // IndexMetaData -> Index -> IndexInfo
+    // indexes: id -> indexinfo
+    // index_names: table_id -> index_name -> id
+    auto index_oid = next_index_oid_++;
+    auto index_meta = new IndexMetadata(index_name, table_name, &schema, key_attrs);
+
+    auto index = std::make_unique<BPlusTreeIndex<KeyType, ValueType, KeyComparator>>(index_meta, bpm_);
+    if (index_names_.count(table_name)){
+      index_names_[table_name].emplace(index_name, index_oid);
+    }else{
+      auto temp = std::unordered_map<std::string, index_oid_t>{{index_name, index_oid}};
+      index_names_[table_name] = temp;
+    }
+
+    auto index_info = new IndexInfo(key_schema, index_name, std::move(index), index_oid, table_name, keysize);
+    indexes_.emplace(index_oid, index_info);
+    return index_info;
   }
 
-  IndexInfo *GetIndex(const std::string &index_name, const std::string &table_name) { return nullptr; }
+  IndexInfo *GetIndex(const std::string &index_name, const std::string &table_name) {
+    auto index_oid = index_names_[table_name][index_name];
+    return indexes_[index_oid].get();
+  }
 
-  IndexInfo *GetIndex(index_oid_t index_oid) { return nullptr; }
+  IndexInfo *GetIndex(index_oid_t index_oid) {
+    return indexes_[index_oid].get();
+  }
 
-  std::vector<IndexInfo *> GetTableIndexes(const std::string &table_name) { return std::vector<IndexInfo *>(); }
+  std::vector<IndexInfo *> GetTableIndexes(const std::string &table_name) {
+    std::vector<IndexInfo *> table_indexes;
+    if (index_names_.find(table_name) != index_names_.end()){
+      auto index_name_oid_map = index_names_[table_name];
+      for(const auto& item : index_name_oid_map){
+        auto index_oid = item.second;
+        table_indexes.emplace_back(indexes_[index_oid].get());
+      }
+    }
+    return table_indexes;
+  }
 
  private:
   [[maybe_unused]] BufferPoolManager *bpm_;
