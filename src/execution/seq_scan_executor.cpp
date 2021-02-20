@@ -29,8 +29,8 @@ bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
     *tuple = **table_iter_;
     *rid = tuple->GetRid();
     ++(*table_iter_);
-    // 找到了一个满足条件的，返回true
-    if (!plan_->GetPredicate() || plan_->GetPredicate()->Evaluate(tuple, &table_meta_->schema_).GetAs<bool>()){
+    // 找到了一个满足predicate条件的或者是没有predicate的，返回true
+    if (plan_->GetPredicate() == nullptr || plan_->GetPredicate()->Evaluate(tuple, &table_meta_->schema_).GetAs<bool>()){
       return true;
     }
   }

@@ -225,7 +225,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
 
   if (size < leaf_node->GetMinSize()){
     // 更新next_page_id和parent_page的array这些操作交给CoalesceOrRedistribute来做
-    bool need_delete = CoalesceOrRedistribute(leaf_node);
+    bool need_delete = CoalesceOrRedistribute(leaf_node, transaction);
     if (need_delete){
       page_id_t delete_page = leaf_node->GetPageId();
       bool deleted = buffer_pool_manager_->DeletePage(delete_page);

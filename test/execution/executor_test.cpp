@@ -352,9 +352,7 @@ TEST_F(ExecutorTest, SimpleDeleteTest) {
   // index
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);
-  auto index_info = GetExecutorContext()->GetCatalog()->CreateIndex<GenericKey<8>, RID, GenericComparator<8>>(
-      GetTxn(), "index1", "test_1", GetExecutorContext()->GetCatalog()->GetTable("test_1")->schema_, *key_schema, {0},
-      8);
+  auto index_info = GetExecutorContext()->GetCatalog()->CreateIndex<GenericKey<8>, RID, GenericComparator<8>>(GetTxn(), "index1", "test_1", GetExecutorContext()->GetCatalog()->GetTable("test_1")->schema_, *key_schema, {0},8);
 
   // Execute
   std::vector<Tuple> result_set;
@@ -379,7 +377,8 @@ TEST_F(ExecutorTest, SimpleDeleteTest) {
 
   std::vector<RID> rids;
   // 索引从tuple中获取的key的size和实际存储的不一样，因此这句会出错
-  index_info->index_->ScanKey(index_key, &rids, GetTxn());
+  // 讲道理，我觉得是他这写错了，因为上面的test在做index的scan是都会先进行转换，即KeyFromTuple
+  index_info->index_->ScanKey(index_key.KeyFromTuple(schema, index_info->key_schema_, index_info->index_->GetKeyAttrs()), &rids, GetTxn());
   ASSERT_TRUE(rids.empty());
 
   delete key_schema;
@@ -419,8 +418,7 @@ TEST_F(ExecutorTest, SimpleNestedLoopJoinTest) {
     auto col3 = MakeColumnValueExpression(*out_schema2, 1, "col3");
     auto predicate = MakeComparisonExpression(colA, col1, ComparisonType::Equal);
     out_final = MakeOutputSchema({{"colA", colA}, {"colB", colB}, {"col1", col1}, {"col3", col3}});
-    join_plan = std::make_unique<NestedLoopJoinPlanNode>(
-        out_final, std::vector<const AbstractPlanNode *>{scan_plan1.get(), scan_plan2.get()}, predicate);
+    join_plan = std::make_unique<NestedLoopJoinPlanNode>(out_final, std::vector<const AbstractPlanNode *>{scan_plan1.get(), scan_plan2.get()}, predicate);
   }
 
   std::vector<Tuple> result_set;
@@ -436,7 +434,7 @@ TEST_F(ExecutorTest, SimpleNestedLoopJoinTest) {
 }
 
 // NOLINTNEXTLINE
-TEST_F(ExecutorTest, DISABLED_SimpleAggregationTest) {
+TEST_F(ExecutorTest, SimpleAggregationTest) {
   // SELECT COUNT(colA), SUM(colA), min(colA), max(colA) from test_1;
   std::unique_ptr<AbstractPlanNode> scan_plan;
   const Schema *scan_schema;
@@ -487,7 +485,7 @@ TEST_F(ExecutorTest, DISABLED_SimpleAggregationTest) {
 }
 
 // NOLINTNEXTLINE
-TEST_F(ExecutorTest, DISABLED_SimpleGroupByAggregation) {
+TEST_F(ExecutorTest, SimpleGroupByAggregation) {
   // SELECT count(colA), colB, sum(colC) FROM test_1 Group By colB HAVING count(colA) > 100
   std::unique_ptr<AbstractPlanNode> scan_plan;
   const Schema *scan_schema;

@@ -30,9 +30,17 @@ bool NestedLoopJoinExecutor::Next(Tuple *tuple, RID *rid) {
   RID right_rid;
   Tuple left_tuple;
   RID left_rid;
-
-  while(right_executor_->Next(&right_tuple, &right_rid) && left_executor_->Next(&left_tuple, &left_rid)){
-    plan_->Predicate()->EvaluateJoin(&left_tuple, left_executor_->GetOutputSchema(), &right_tuple, right_executor_->GetOutputSchema());
+  if(right_executor_->Next(&right_tuple, &right_rid) && left_executor_->Next(&left_tuple, &left_rid)){
+    if (plan_->Predicate()->EvaluateJoin(&left_tuple, left_executor_->GetOutputSchema(), &right_tuple, right_executor_->GetOutputSchema()).GetAs<bool>()) {
+      std::vector<Value> out_vec;
+      int count = plan_->OutputSchema()->GetColumnCount();
+      for (int i = 0; i < count; i++) {
+        out_vec.emplace_back(plan_->OutputSchema()->GetColumn(i).GetExpr()->EvaluateJoin(&left_tuple, left_executor_->GetOutputSchema(), &right_tuple, right_executor_->GetOutputSchema()));
+      }
+      *tuple = Tuple(out_vec, plan_->OutputSchema());
+      *rid = tuple->GetRid();
+      return true;
+    }
   }
   return false;
 }

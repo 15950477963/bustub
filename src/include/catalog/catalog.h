@@ -129,6 +129,13 @@ class Catalog {
     auto index_meta = new IndexMetadata(index_name, table_name, &schema, key_attrs);
 
     auto index = std::make_unique<BPlusTreeIndex<KeyType, ValueType, KeyComparator>>(index_meta, bpm_);
+    // 将表中数据填入索引
+    table_oid_t table_oid = names_[table_name];
+    for(auto it = tables_[table_oid]->table_->Begin(txn); it != tables_[table_oid]->table_->End(); it++){
+      Tuple tuple = *(it);
+      index->InsertEntry(tuple.KeyFromTuple(schema, key_schema, key_attrs), tuple.GetRid(), txn);
+    }
+    // 把与index相关的map填好
     if (index_names_.count(table_name)){
       index_names_[table_name].emplace(index_name, index_oid);
     }else{

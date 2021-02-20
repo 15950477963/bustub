@@ -37,8 +37,7 @@ class ColumnValueExpression : public AbstractExpression {
 
   Value EvaluateJoin(const Tuple *left_tuple, const Schema *left_schema, const Tuple *right_tuple,
                      const Schema *right_schema) const override {
-    return tuple_idx_ == 0 ? left_tuple->GetValue(left_schema, col_idx_)
-                           : right_tuple->GetValue(right_schema, col_idx_);
+    return tuple_idx_ == 0 ? left_tuple->GetValue(left_schema, col_idx_) : right_tuple->GetValue(right_schema, col_idx_);
   }
 
   Value EvaluateAggregate(const std::vector<Value> &group_bys, const std::vector<Value> &aggregates) const override {

@@ -18,14 +18,14 @@ namespace bustub {
 
 InsertExecutor::InsertExecutor(ExecutorContext *exec_ctx, const InsertPlanNode *plan,
                                std::unique_ptr<AbstractExecutor> &&child_executor)
-    : AbstractExecutor(exec_ctx), plan_(plan) {}
+    : AbstractExecutor(exec_ctx), plan_(plan), child_executor_(std::move(child_executor)) {}
 
 void InsertExecutor::Init() {
   table_meta_ = exec_ctx_->GetCatalog()->GetTable(plan_->TableOid());
-//  if (!exec_ctx_->GetCatalog()->GetTableIndexes(table_meta_->name_).empty()){
-//    index_info_ = exec_ctx_->GetCatalog()->GetTableIndexes(table_meta_->name_)[0];
-//  }
-  index_info_ = exec_ctx_->GetCatalog()->GetTableIndexes(table_meta_->name_)[0];
+  if (!exec_ctx_->GetCatalog()->GetTableIndexes(table_meta_->name_).empty()){
+    index_info_ = exec_ctx_->GetCatalog()->GetTableIndexes(table_meta_->name_)[0];
+  }
+//  index_info_ = exec_ctx_->GetCatalog()->GetTableIndexes(table_meta_->name_)[0];
   if (!plan_->IsRawInsert()) {
     child_executor_ = ExecutorFactory::CreateExecutor(GetExecutorContext(), plan_->GetChildPlan());
     child_executor_->Init();
@@ -44,7 +44,9 @@ bool InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
       RID rid_to_insert;
       // InsertTuple在tuple过大，page剩余空间放不下时会返回false
       if (table_meta_->table_->InsertTuple(tuple_to_insert, &rid_to_insert, exec_ctx_->GetTransaction())){
-        index_info_->index_->InsertEntry(tuple_to_insert, rid_to_insert, exec_ctx_->GetTransaction());
+        if(index_info_ != nullptr){
+          index_info_->index_->InsertEntry(tuple_to_insert, rid_to_insert, exec_ctx_->GetTransaction());
+        }
       }else {
         return false;
       }
@@ -57,8 +59,10 @@ bool InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
     // 前者是Next找到的符合条件的Tuple的RID，后者是Insert方法将新的Tuple插入的位置
     while (child_executor_->Next(&tuple_to_insert, rid)) {
       if (table_meta_->table_->InsertTuple(tuple_to_insert, &rid_to_insert, exec_ctx_->GetTransaction())) {
-        index_info_->index_->InsertEntry(tuple_to_insert.KeyFromTuple(table_meta_->schema_, index_info_->key_schema_, index_info_->index_->GetKeyAttrs()),
-                                         rid_to_insert, exec_ctx_->GetTransaction());
+        if (index_info_ != nullptr){
+          index_info_->index_->InsertEntry(tuple_to_insert.KeyFromTuple(table_meta_->schema_, index_info_->key_schema_, index_info_->index_->GetKeyAttrs()),
+                                           rid_to_insert, exec_ctx_->GetTransaction());
+        }
       } else {
         return false;
       }
